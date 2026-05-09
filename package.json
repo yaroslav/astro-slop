@@ -1,0 +1,67 @@
+{
+  "name": "astro-slop",
+  "version": "0.1.0",
+  "description": "Astro integration for llms.txt: per-page .md siblings, llms.txt index, content negotiation, and link rel=alternate injection. Content slop for LLMs to slurp.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Yaroslav Markin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yaroslavmarkin/astro-slop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yaroslavmarkin/astro-slop/issues"
+  },
+  "homepage": "https://github.com/yaroslavmarkin/astro-slop#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning 'tests/*.test.ts'",
+    "lint": "eslint .",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "astro": "^6.0.0"
+  },
+  "dependencies": {
+    "defuddle": "^0.18.1",
+    "linkedom": "^0.18.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "lefthook": "^2.1.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2"
+  },
+  "keywords": [
+    "astro",
+    "astro-integration",
+    "llms.txt",
+    "llms-full.txt",
+    "markdown",
+    "llm",
+    "agents",
+    "content-negotiation",
+    "withastro"
+  ]
+}

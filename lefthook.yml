@@ -1,0 +1,6 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: eslint
+      glob: "*.{ts,js,mjs,cjs}"
+      run: npx eslint {staged_files}
