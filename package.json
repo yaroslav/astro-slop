@@ -1,7 +1,7 @@
 {
   "name": "astro-slop",
   "version": "0.1.0",
-  "description": "Astro integration for llms.txt: per-page .md siblings, llms.txt index, content negotiation, and link rel=alternate injection. Content slop for LLMs to slurp.",
+  "description": "The most complete and flexible Astro integration for LLMs and generating markdown versions of pages. Per-page .md siblings, llms.txt index, content negotiation, and link rel=alternate.",
   "type": "module",
   "license": "MIT",
   "author": "Yaroslav Markin",
