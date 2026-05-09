@@ -1,11 +1,12 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { htmlFileToUrlPath, substituteParams } from "../src/paths.ts";
+import { htmlFileToUrlPath, mdFileToUrlPath } from "../src/paths.ts";
 
-// htmlFileToUrlPath uses node:path's `sep` for input splitting; on POSIX
-// runners that's "/", so backslash inputs aren't normalized in tests run
-// here. The cases below exercise POSIX-style relative paths, which is what
-// `relative()` returns during a build on the same platform.
+// htmlFileToUrlPath / mdFileToUrlPath use node:path's `sep` for input
+// splitting; on POSIX runners that's "/", so backslash inputs aren't
+// normalized in tests run here. The cases below exercise POSIX-style
+// relative paths, which is what `relative()` returns during a build on
+// the same platform.
 
 describe("htmlFileToUrlPath", () => {
   test("'index.html' maps to '/'", () => {
@@ -33,49 +34,23 @@ describe("htmlFileToUrlPath", () => {
   });
 });
 
-describe("substituteParams", () => {
-  test("substitutes a single [name] segment", () => {
+describe("mdFileToUrlPath", () => {
+  test("'index.md' maps to '/index.md' (literal, no index folding)", () => {
+    assert.equal(mdFileToUrlPath("index.md"), "/index.md");
+  });
+
+  test("'posts.md' maps to '/posts.md'", () => {
+    assert.equal(mdFileToUrlPath("posts.md"), "/posts.md");
+  });
+
+  test("nested 'posts/hello-world.md' maps to '/posts/hello-world.md'", () => {
     assert.equal(
-      substituteParams("/posts/[slug].md", { slug: "hello-world" }),
+      mdFileToUrlPath("posts/hello-world.md"),
       "/posts/hello-world.md",
     );
   });
 
-  test("substitutes [...rest] segments preserving inner slashes", () => {
-    assert.equal(
-      substituteParams("/[...path].md", { path: "foo/bar/baz" }),
-      "/foo/bar/baz.md",
-    );
-  });
-
-  test("substitutes multiple distinct params", () => {
-    assert.equal(
-      substituteParams("/[year]/[slug].md", {
-        year: "2025",
-        slug: "hello",
-      }),
-      "/2025/hello.md",
-    );
-  });
-
-  test("returns the pattern unchanged when no params match", () => {
-    assert.equal(
-      substituteParams("/static/page.md", { slug: "ignored" }),
-      "/static/page.md",
-    );
-  });
-
-  test("ignores extra params not present in the pattern", () => {
-    assert.equal(
-      substituteParams("/posts/[slug].md", { slug: "x", year: "2025" }),
-      "/posts/x.md",
-    );
-  });
-
-  test("treats [...slug] and [slug] independently in the same pattern", () => {
-    assert.equal(
-      substituteParams("/[...slug].md", { slug: "a/b" }),
-      "/a/b.md",
-    );
+  test("'posts/index.md' maps to '/posts/index.md' (no folding)", () => {
+    assert.equal(mdFileToUrlPath("posts/index.md"), "/posts/index.md");
   });
 });

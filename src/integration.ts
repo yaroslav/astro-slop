@@ -1,13 +1,15 @@
-// astro-slop integration entry. Wires up the four cross-cutting pieces:
+// astro-slop integration entry. Wires up the cross-cutting pieces:
 // - Middleware that injects <link rel="alternate"> in HTML responses (dev/SSR)
 // - astro:routes:resolved hook that builds the route manifest
 // - astro:config:setup hook that injects /llms.txt and /llms-full.txt routes
 //   (only if the user hasn't shipped their own override)
 // - astro:build:done hook that injects alt-links into static HTML output
+//   AND finalizes /llms.txt and /llms-full.txt by walking dist/*.md.
 
 import type { AstroIntegration } from "astro";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { buildLlmsArtifacts } from "./build-llms-txt.js";
 import { injectAlternateLinks } from "./inject-alternate-links.js";
 import { buildManifest } from "./manifest.js";
 import {
@@ -99,8 +101,16 @@ export default function slop(options: SlopOptions = {}): AstroIntegration {
         state.manifest = buildManifest(routes);
       },
       "astro:build:done": async ({ dir }) => {
-        if (!resolved.injectAlternateLink || !state.manifest) return;
-        await injectAlternateLinks(dir, state.manifest);
+        if (!state.manifest) return;
+        if (resolved.injectAlternateLink) {
+          await injectAlternateLinks(dir, state.manifest);
+        }
+        await buildLlmsArtifacts(
+          dir,
+          state.manifest,
+          resolved,
+          resolved.llmsFullTxt,
+        );
       },
     },
   };

@@ -1,31 +1,34 @@
-// /llms-full.txt auto-generation.
-//
-// Mirrors /llms.txt's section structure (Pages / Posts) but inlines each
-// route's full body content instead of just the bullet link. The result is
-// a single document an LLM can ingest to get every piece of unique prose
-// content the site exposes as markdown.
-//
-// `defaultLlmsFullTxt()` returns the body string. Wrap from a custom
-// src/pages/llms-full.txt.ts to extend or filter.
+// /llms-full.txt route handler + the public `defaultLlmsFullTxt(context?)`
+// helper. Mirrors llms-txt.ts; see that file's header for the full design.
 
-import type { APIRoute } from "astro";
-import { captureRoutes, type CapturedRoute } from "./capture-routes.js";
+import type { APIContext, APIRoute } from "astro";
+import { assembleLlmsFullTxt } from "./llms-assembly.js";
+import { captureViaFetch } from "./llms-fetch.js";
+import { LLMS_FULL_TXT_SENTINEL } from "./sentinels.js";
 import { getSlopState } from "./state.js";
 
 const TEXT_PLAIN_HEADERS = {
   "Content-Type": "text/plain; charset=utf-8",
 } satisfies HeadersInit;
 
-function sectionList(captures: CapturedRoute[]): string[] {
-  return captures.flatMap((c) => [`### ${c.title}`, "", c.body, ""]);
+function isPrerenderContext(context: APIContext): boolean {
+  return "isPrerendered" in context && context.isPrerendered === true;
 }
 
 /**
- * Returns the auto-generated /llms-full.txt body as a string.
+ * Returns the auto-generated /llms-full.txt body.
  *
- * Wrap this from a custom `src/pages/llms-full.txt.ts` to extend or filter.
+ * Same prerender / request-time semantics as `defaultLlmsTxt(context)` —
+ * sentinel during prerender (replaced at build:done), full body via fetch
+ * crawl in dev / SSR.
  */
-export async function defaultLlmsFullTxt(): Promise<string> {
+export async function defaultLlmsFullTxt(
+  context?: APIContext,
+): Promise<string> {
+  if (!context || isPrerenderContext(context)) {
+    return LLMS_FULL_TXT_SENTINEL;
+  }
+
   const state = getSlopState();
   if (!state.manifest) {
     throw new Error(
@@ -34,30 +37,11 @@ export async function defaultLlmsFullTxt(): Promise<string> {
     );
   }
 
-  const { siteName, siteDescription } = state.options;
-  const pageCaptures = await captureRoutes(
-    state.manifest.mdRoutes.filter((r) => !r.isPerEntry),
-  );
-  const postCaptures = await captureRoutes(
-    state.manifest.mdRoutes.filter((r) => r.isPerEntry),
-  );
-
-  const lines: string[] = [`# ${siteName ?? "Site"}`, ""];
-
-  if (siteDescription) {
-    lines.push(`> ${siteDescription}`, "");
-  }
-
-  if (pageCaptures.length > 0) {
-    lines.push("## Pages", "", ...sectionList(pageCaptures));
-  }
-
-  if (postCaptures.length > 0) {
-    lines.push("## Posts", "", ...sectionList(postCaptures));
-  }
-
-  return lines.join("\n").trimEnd() + "\n";
+  const captured = await captureViaFetch(context, state.manifest);
+  return assembleLlmsFullTxt(captured, state.options);
 }
 
-export const GET: APIRoute = async () =>
-  new Response(await defaultLlmsFullTxt(), { headers: TEXT_PLAIN_HEADERS });
+export const GET: APIRoute = async (context) => {
+  const body = await defaultLlmsFullTxt(context);
+  return new Response(body, { headers: TEXT_PLAIN_HEADERS });
+};

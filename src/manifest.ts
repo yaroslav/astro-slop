@@ -29,6 +29,8 @@ export interface Manifest {
   mdRoutes: MdRouteEntry[];
   /** Regex matchers for HTML URL patterns that have .md siblings. */
   htmlMatchers: { regex: RegExp; htmlPattern: string }[];
+  /** Regex matchers for .md URL patterns, paired with their manifest entry. */
+  mdMatchers: { regex: RegExp; entry: MdRouteEntry }[];
 }
 
 const MD_SUFFIX = ".md";
@@ -85,7 +87,28 @@ export function buildManifest(routes: IntegrationResolvedRoute[]): Manifest {
     htmlPattern: entry.htmlPattern,
   }));
 
-  return { mdRoutes, htmlMatchers };
+  const mdMatchers = mdRoutes.map((entry) => ({
+    regex: patternToRegex(entry.mdPattern),
+    entry,
+  }));
+
+  return { mdRoutes, htmlMatchers, mdMatchers };
+}
+
+/**
+ * Find the manifest entry whose `.md` URL pattern matches the given concrete
+ * `.md` URL, e.g. `/posts/hello-world.md` against pattern `/posts/[slug].md`.
+ * Returns undefined if no pattern matches — typically a `.md` file in `dist/`
+ * that wasn't produced by an `.md.ts` endpoint we know about.
+ */
+export function findMdEntryFor(
+  mdUrl: string,
+  manifest: Manifest,
+): MdRouteEntry | undefined {
+  for (const { regex, entry } of manifest.mdMatchers) {
+    if (regex.test(mdUrl)) return entry;
+  }
+  return undefined;
 }
 
 /**

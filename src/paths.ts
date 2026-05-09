@@ -1,11 +1,10 @@
-// Pure path/URL helpers shared by build-time HTML rewriting and runtime
-// route expansion. Kept import-free so they can be unit-tested directly
-// without pulling in Astro types or filesystem dependencies.
+// Pure path/URL helpers shared by build-time HTML rewriting and llms-txt
+// assembly. Kept import-free so they can be unit-tested directly.
 
 import { sep } from "node:path";
 
 /**
- * Convert a relative dist file path back to its URL pathname.
+ * Convert a relative dist file path back to its URL pathname for an HTML file.
  *
  *   "index.html"      → "/"
  *   "foo/index.html"  → "/foo"
@@ -26,20 +25,15 @@ export function htmlFileToUrlPath(relPath: string): string {
 }
 
 /**
- * Substitute Astro-style URL pattern segments with concrete param values.
- * Handles both `[name]` and `[...rest]` segments. The rest form is replaced
- * first so that a literal `[name]` inside a `[...rest]` value isn't matched.
+ * Convert a relative dist file path back to its URL pathname for a markdown
+ * file. Unlike HTML, `.md` URLs are served at their literal path with the
+ * extension preserved.
+ *
+ *   "index.md"          → "/index.md"
+ *   "posts.md"          → "/posts.md"
+ *   "posts/hello.md"    → "/posts/hello.md"
+ *   "posts/index.md"    → "/posts/index.md"
  */
-export function substituteParams(
-  pattern: string,
-  params: Record<string, string>,
-): string {
-  let url = pattern;
-  for (const [key, value] of Object.entries(params)) {
-    // [...rest] segments
-    url = url.replace(`[...${key}]`, value);
-    // [name] segments
-    url = url.replace(`[${key}]`, value);
-  }
-  return url;
+export function mdFileToUrlPath(relPath: string): string {
+  return "/" + relPath.split(sep).join("/");
 }

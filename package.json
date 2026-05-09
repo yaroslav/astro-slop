@@ -1,6 +1,6 @@
 {
   "name": "astro-slop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The most complete and flexible Astro integration for LLMs and generating markdown versions of pages. Per-page .md siblings, llms.txt index, content negotiation, and link rel=alternate.",
   "type": "module",
   "license": "MIT",

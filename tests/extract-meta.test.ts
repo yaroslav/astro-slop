@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { extractMeta } from "../src/extract-meta.ts";
+import { extractMeta, stripFrontmatter } from "../src/extract-meta.ts";
 
 describe("extractMeta", () => {
   test("extracts title and description from frontmatter", () => {
@@ -70,5 +70,37 @@ description: Only description
       title: "Body H1",
       description: "Only description",
     });
+  });
+});
+
+describe("stripFrontmatter", () => {
+  test("removes a leading frontmatter block and the blank lines after it", () => {
+    const input = `---
+title: X
+---
+
+# Body`;
+    assert.equal(stripFrontmatter(input), "# Body");
+  });
+
+  test("returns the input unchanged when no frontmatter is present", () => {
+    const input = "# Body\n\nNo frontmatter here.";
+    assert.equal(stripFrontmatter(input), input);
+  });
+
+  test("only strips the leading frontmatter block, not subsequent --- lines", () => {
+    const input = `---
+title: X
+---
+
+Body before.
+
+---
+
+Body after the horizontal rule.`;
+    assert.equal(
+      stripFrontmatter(input),
+      "Body before.\n\n---\n\nBody after the horizontal rule.",
+    );
   });
 });

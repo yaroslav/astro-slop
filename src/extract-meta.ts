@@ -7,11 +7,17 @@
 // Returns whatever it can find. Either field may be undefined.
 
 const FRONTMATTER_BLOCK = /^---\n([\s\S]*?)\n---/;
+const FRONTMATTER_LEADING = /^---\n[\s\S]*?\n---\n*/;
 const FRONTMATTER_TITLE = /^title:\s*(.+?)\s*$/m;
 const FRONTMATTER_DESCRIPTION = /^description:\s*(.+?)\s*$/m;
 const FIRST_H1 = /^#\s+(.+?)\s*$/m;
 
 const QUOTES = /^["']|["']$/g;
+
+/** Strip a leading YAML frontmatter block from the start of a markdown string. */
+export function stripFrontmatter(markdown: string): string {
+  return markdown.replace(FRONTMATTER_LEADING, "");
+}
 
 function unquote(value: string): string {
   return value.replace(QUOTES, "");

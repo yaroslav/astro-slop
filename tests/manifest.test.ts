@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { IntegrationResolvedRoute } from "astro";
 import {
   buildManifest,
+  findMdEntryFor,
   findMdSiblingFor,
   mdPatternToHtmlPattern,
 } from "../src/manifest.ts";
@@ -132,5 +133,29 @@ describe("findMdSiblingFor", () => {
     ]);
     assert.equal(findMdSiblingFor("/anything.md", catchAllManifest), undefined);
     assert.equal(findMdSiblingFor("/foo/bar.md", catchAllManifest), undefined);
+  });
+});
+
+describe("findMdEntryFor", () => {
+  const manifest = buildManifest([
+    mockRoute({ pattern: "/index.md" }),
+    mockRoute({ pattern: "/posts.md" }),
+    mockRoute({ pattern: "/posts/[slug].md", params: ["slug"] }),
+  ]);
+
+  test("returns the static entry for an exact .md URL", () => {
+    const entry = findMdEntryFor("/posts.md", manifest);
+    assert.equal(entry?.mdPattern, "/posts.md");
+    assert.equal(entry?.isPerEntry, false);
+  });
+
+  test("returns the per-entry entry for a concrete .md URL", () => {
+    const entry = findMdEntryFor("/posts/hello-world.md", manifest);
+    assert.equal(entry?.mdPattern, "/posts/[slug].md");
+    assert.equal(entry?.isPerEntry, true);
+  });
+
+  test("returns undefined for an unrelated URL", () => {
+    assert.equal(findMdEntryFor("/about.md", manifest), undefined);
   });
 });

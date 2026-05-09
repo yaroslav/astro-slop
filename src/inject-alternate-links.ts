@@ -11,29 +11,13 @@
 // dev-mode and SSR responses; this handles static prerender output where
 // middleware may not consistently fire across Astro versions.
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { injectAlternateLink } from "./alt-link.js";
 import { findMdSiblingFor, type Manifest } from "./manifest.js";
 import { htmlFileToUrlPath } from "./paths.js";
-
-async function* walkHtmlFiles(dir: string): AsyncGenerator<string> {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkHtmlFiles(fullPath);
-    } else if (entry.isFile() && entry.name.endsWith(".html")) {
-      yield fullPath;
-    }
-  }
-}
+import { walkHtmlFiles } from "./walk.js";
 
 /**
  * Walks `distUrl`, injecting `<link rel="alternate" type="text/markdown">`

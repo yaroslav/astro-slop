@@ -49,8 +49,8 @@ astro-slop does exactly that: it gives you enough tooling to create your own sim
 - **`<link rel="alternate" type="text/markdown">`** auto-injected into every HTML page that has a `.md` sibling. Two mutually-exclusive paths so it works across Astro output modes: runtime middleware handles dev / SSR responses, the `astro:build:done` HTML rewriter handles static prerender output. No double-injection, no version-dependent fallback.
 - **`cleanMdx(body)`**—strips MDX-specific syntax (top-level `import`/`export` statements, JSX components) from raw collection entry bodies so the result is plain Markdown. HTML is preserved as-is (it's valid Markdown, LLMs parse it fine, and user-written HTML often carries semantic intent). Use it whenever you interpolate `entry.body` into a markdown response — per-entry endpoints, composed pages, anywhere `.mdx` content might leak JSX chrome.
 - **`fromHtml(url, options)`**—for static `.astro` pages without a markdown source. Fetches the rendered HTML and runs it through [Defuddle](https://github.com/kepano/defuddle) for main-content extraction, chrome stripping (nav, footer, sidebars, share buttons), and Markdown conversion in a single pass. Lazy-loaded with `@vite-ignore` dynamic imports so Defuddle and its DOM dependency don't appear in your bundle if `fromHtml` is never called.
-- **`/llms.txt`** auto-assembled from your `.md` routes per the [llmstxt.org spec](https://llmstxt.org). H1 site name, blockquote summary, `## Pages` and `## Posts` sections with title + description bullets—title and description extracted automatically from each endpoint's emitted frontmatter or first H1. Override by writing your own `src/pages/llms.txt.ts` and calling `defaultLlmsTxt()` to extend with custom sections (recommended reading, references, external links, etc.).
-- **`/llms-full.txt`**—mirrors `/llms.txt`'s site-header + Pages/Posts structure but inlines each route's full body content as `### Title\n\n${body}` sections. One document an LLM can ingest end-to-end. Same override pattern via `defaultLlmsFullTxt()`.
+- **`/llms.txt`** auto-assembled from your `.md` routes per the [llmstxt.org spec](https://llmstxt.org). H1 site name, blockquote summary, then a flat bullet list of every route with title + description—title and description extracted automatically from each endpoint's emitted frontmatter or first H1. Override by writing your own `src/pages/llms.txt.ts` and calling `defaultLlmsTxt(context)` to splice the auto-gen body into your own structure (sections, recommended reading, references, etc.).
+- **`/llms-full.txt`**—same site header plus each route's full body content inlined as `### Title\n\n${body}` sections. One document an LLM can ingest end-to-end. Same override pattern via `defaultLlmsFullTxt(context)`.
 - **HTTP content negotiation**—when a request's `Accept` header explicitly ranks `text/markdown` above `text/html`, the middleware redirects to the `.md` sibling. RFC 9110-compliant, integration-internal—users add no config. LLM-aware clients (curl scripts, RSS readers, well-behaved crawlers) get markdown automatically; browsers—whose default Accept never lists markdown—keep getting HTML.
 
 ## Install
@@ -207,22 +207,22 @@ Works in `astro dev` and SSR modes. For pure static prerender, prefer the source
 
 ## Customizing `/llms.txt`
 
-The integration auto-generates `/llms.txt` with two sections (`## Pages` / `## Posts`) of bullet links derived from discovered `.md` routes. To extend or replace, write your own endpoint at `src/pages/llms.txt.ts`—when present, the plugin's auto-injection skips and yours wins.
+The integration auto-generates `/llms.txt` as a flat bullet list of every `.md` route. To group, reorder, add sections, or replace entirely, write your own endpoint at `src/pages/llms.txt.ts`—when present, the plugin's auto-injection skips and yours wins.
 
-`defaultLlmsTxt()` returns the auto-gen body as a string so you can wrap it. Simplest case—append a static "About" section:
+`defaultLlmsTxt(context)` splices the auto-generated body into your wrapping content. Pass the endpoint's `APIContext` so it works in dev and SSR (where it fetches each `.md` route at request time); in static builds it returns a sentinel that the integration's `astro:build:done` hook replaces with the disk-derived body. Simplest case—append a static "About" section:
 
 ~~~ts
 // src/pages/llms.txt.ts
 import type { APIRoute } from "astro";
 import { md, defaultLlmsTxt } from "astro-slop";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
   const body = md.string`
-${await defaultLlmsTxt()}
+${await defaultLlmsTxt(context)}
 
 ## About this site
 
-A blog about software engineering, written by Jane Doe. Contact: jane@example.com.
+Custom site description, hours, contact info, or anything else you want under a top-level heading.
 `;
 
   return new Response(body, {
@@ -241,11 +241,11 @@ import type { APIRoute } from "astro";
 import { md, defaultLlmsTxt } from "astro-slop";
 import { getCollection } from "astro:content";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
   const links = await getCollection("links");
 
   const body = md.string`
-${await defaultLlmsTxt()}
+${await defaultLlmsTxt(context)}
 
 ## Recommended reading
 
@@ -260,32 +260,28 @@ ${links.map((l) => `- ${md.link(l.data.title, l.data.url)} — ${l.data.summary}
 
 ## Customizing `/llms-full.txt`
 
-`/llms-full.txt` mirrors `/llms.txt`'s structure (`# Site`, `> description`, `## Pages` / `## Posts` groupings) but **inlines each route's full body content** instead of bullet links. Same shape, different density.
+`/llms-full.txt` reuses `/llms.txt`'s site header (`# Site` plus the `> description` blockquote) and then **inlines every route's full body content** as a flat list of `### Title` sections instead of bullet links. Same source data, different density.
 
 ~~~
 # My Site
 
 > Site description
 
-## Pages
-
 ### Welcome to My Site
 
 [full body of /index.md, frontmatter stripped]
 
-### Posts
+### About
 
-[full body of /posts.md]
+[full body of /about.md]
 
-## Posts
+### My First Entry
 
-### My First Post
-
-[full body of /posts/first-post.md]
+[full body of /entries/first-entry.md]
 
 ### Hello, World
 
-[full body of /posts/hello-world.md]
+[full body of /entries/hello-world.md]
 ~~~
 
 Override by writing `src/pages/llms-full.txt.ts`:
@@ -295,8 +291,8 @@ Override by writing `src/pages/llms-full.txt.ts`:
 import type { APIRoute } from "astro";
 import { defaultLlmsFullTxt } from "astro-slop";
 
-export const GET: APIRoute = async () => {
-  const body = await defaultLlmsFullTxt();
+export const GET: APIRoute = async (context) => {
+  const body = await defaultLlmsFullTxt(context);
   return new Response(`${body}\n## Notes\n\nExtra context here.\n`, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
@@ -420,19 +416,22 @@ Use it on `entry.body` for collection entries that may use MDX:
 md`...${cleanMdx(entry.body ?? "")}`
 ~~~
 
-### `defaultLlmsTxt(): Promise<string>`
+### `defaultLlmsTxt(context?: APIContext): Promise<string>`
 
-Returns the auto-generated `/llms.txt` body. Throws if called before `astro:routes:resolved` (shouldn't happen during normal route handling). Use inside a custom `src/pages/llms.txt.ts` to extend.
+Returns the auto-generated `/llms.txt` body. Use inside a custom `src/pages/llms.txt.ts` to extend.
 
-### `defaultLlmsFullTxt(): Promise<string>`
+- **Live request (dev / SSR):** fetches each `.md` route over HTTP using `context.request.url` as the base, crawls response bodies for links to per-entry siblings, and returns the assembled body. Pass `context` from your endpoint to get this path.
+- **Static prerender, or no `context`:** returns a sentinel string. The integration's `astro:build:done` hook reads `dist/llms.txt`, `replaceAll`s the sentinel with the disk-walked auto-gen body, and writes it back. Your wrapping content (custom sections, etc.) is preserved; the auto-gen content lands in place of the sentinel.
 
-Returns the auto-generated `/llms-full.txt` body—site header + `## Pages` / `## Posts` sections with each route's full content inlined as `### Title\n\n${body}`.
+### `defaultLlmsFullTxt(context?: APIContext): Promise<string>`
+
+Returns the auto-generated `/llms-full.txt` body—site header followed by each route's full content inlined as `### Title\n\n${body}` sections. Same prerender / runtime split as `defaultLlmsTxt`; pass `context` from your endpoint.
 
 ## Examples
 
-### Posts collection
+### Collection-backed routes
 
-The most common case: a `posts` collection of `.md`/`.mdx` files, plus a listing page and per-post detail pages. Two endpoint files cover both.
+A common case: a content collection of `.md`/`.mdx` files (the example uses `posts`, but any name works), plus a listing page and per-entry detail pages. Two endpoint files cover both.
 
 **`src/pages/posts/index.astro`**—the listing. Hoist the `posts` array to `export const` so the `.md.ts` sibling can import it:
 
@@ -519,7 +518,7 @@ import { aboutEntry } from "./about.astro";
 export const GET: APIRoute = () => md`${cleanMdx(aboutEntry!.body ?? "")}`;
 ~~~
 
-That's a single `.md` route at `/about.md`. The integration auto-injects the alt-link and includes the page in `/llms.txt` under `## Pages`.
+That's a single `.md` route at `/about.md`. The integration auto-injects the alt-link and includes the page in `/llms.txt`.
 
 ### Single HTML page that needs conversion
 
@@ -572,7 +571,7 @@ ${await defaultLlmsTxt()}
 
 ## About this site
 
-A blog about software engineering by Jane Doe. Get in touch via jane@example.com.
+Custom site description, hours, contact info, or whatever else you want under a top-level heading.
 `;
 
   return new Response(body, {
@@ -620,7 +619,7 @@ import { defaultLlmsFullTxt } from "astro-slop";
 export const GET: APIRoute = async () => {
   const body = await defaultLlmsFullTxt();
   return new Response(
-    `${body}\n## Notes for agents\n\nThis content is licensed CC BY 4.0. Attribution: Jane Doe, https://example.com.\n`,
+    `${body}\n## Notes for agents\n\nThis content is licensed CC BY 4.0. Attribution: https://example.com.\n`,
     { headers: { "Content-Type": "text/plain; charset=utf-8" } },
   );
 };
@@ -690,18 +689,16 @@ To disable: `slop({ injectAlternateLink: false })`.
 
 ## How `/llms.txt` and `/llms-full.txt` are assembled
 
-Both files share a single internal pipeline (`captureRoutes`):
+Two paths produce the same logical output from different sources:
 
-1. Take the manifest's list of `.md` routes.
-2. For each, expand dynamic patterns to concrete URLs by invoking the endpoint's `getStaticPaths`. Static routes pass through with one expansion.
-3. For each concrete URL, call the endpoint's `GET` to capture the emitted markdown body.
-4. Parse out title (frontmatter `title:` or first H1) and description (frontmatter `description:`).
-5. Return a list of `{ title, description, body, mdUrl, htmlUrl }` records.
+**Static build** — at `astro:build:done`, the integration walks `dist/*.md`, matches each file to a route in the manifest, parses title (frontmatter `title:` or first H1) and description (frontmatter `description:`), strips frontmatter from the body, and writes `dist/llms.txt` and `dist/llms-full.txt`. If the user's `src/pages/llms.txt.ts` produced a sentinel-bearing file at prerender, the build:done hook splices the auto-gen body in place of the sentinel — preserving the user's wrapping content.
 
-`/llms.txt` formats each record as `- [title](mdUrl)—description` bullets.
-`/llms-full.txt` formats each record as `### title\n\n${body}` sections, with frontmatter stripped from the body.
+**Dev / SSR** — at request time, the injected `/llms.txt` and `/llms-full.txt` route handlers fetch every static `.md` route over HTTP using the incoming request's URL as the base, then crawl response bodies for markdown links (`[…](/foo.md)`) that match per-entry patterns from the manifest, recursively fetching those. Per-entry routes that aren't linked from any static parent listing won't be enumerated at request time (they still appear in static builds, since the disk walk doesn't depend on link structure).
 
-Both group records into `## Pages` (static routes—homepage, listings) and `## Posts` (per-entry routes—those with `getStaticPaths`).
+`/llms.txt` formats each record as a `- [title](mdUrl) — description` bullet, in URL-sorted order.
+`/llms-full.txt` formats each record as a `### title\n\n${body}` section, in URL-sorted order, with frontmatter stripped from the body.
+
+Auto-gen output is a single flat list — no `## Pages` / `## Posts` bucketing. To group, reorder, or add custom sections, write your own `src/pages/llms.txt.ts` and arrange your output around `defaultLlmsTxt(context)`.
 
 ## Verify your setup
 
