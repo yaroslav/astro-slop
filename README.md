@@ -12,7 +12,7 @@ Content slop for LLMs to slurp. The most complete and flexible Astro integration
 - HTML → Markdown conversion for pages that don't have a markdown source from collections. MDX cleaning for MDX sources.
 - `<link rel="alternate">` injection on every HTML page.
 - Auto-generated—and customizable!—`llms.txt` and `llms-full.txt`.
-- SSR HTTP content negotiation for `text/markdown`.
+- HTTP content negotiation for `text/markdown` in dev and SSR.
 
 ## Rationale
 
@@ -346,8 +346,20 @@ md`
 Same template behavior as `md`, returns a `string` instead of a `Response`. Use for sub-composition or when you need a custom `Response` shape (e.g., `text/plain` for `.txt` URLs):
 
 ~~~ts
-const intro = md.string`# Intro\n\nWelcome.`;
-const fullDoc = md.string`${intro}\n\n## Section 2\n\n...`;
+const intro = md.string`
+  # Intro
+
+  Welcome.
+`;
+
+const fullDoc = md.string`
+  ${intro}
+
+  ## Section 2
+
+  More content.
+`;
+
 return new Response(fullDoc, { headers: { "Content-Type": "text/plain" } });
 ~~~
 
@@ -359,7 +371,7 @@ These return `string`s—call them inside template interpolations:
 |---|---|---|
 | `md.link(text, url)` | `[text](url)` with `[`/`]` in `text` escaped | `md.link("Hello [world]", "/foo")` → `"[Hello \\[world\\]](/foo)"` |
 | `md.heading(depth, text)` | Markdown heading | `md.heading(2, "Posts")` → `"## Posts"` |
-| `md.section(heading, body)` | `${heading}\n\n${body}` | `md.section("## Posts", "- a")` → `"## Posts\n\n- a"` |
+| `md.section(heading, body)` | `${heading}\n\n${body}` | `md.section("## Section", "- a")` → `"## Section\n\n- a"` |
 
 ### `fromHtml(url, options)`
 
@@ -376,7 +388,7 @@ fromHtml("/about", {
 
 | Option | Type | Default | Effect |
 |---|---|---|---|
-| `defuddleOptions` | object | `{ markdown: true }` | Pass-through to Defuddle. The integration always sets `markdown: true`. See [Defuddle's options](https://github.com/kepano/defuddle) for the full set. |
+| `defuddleOptions` | object | `undefined` | Pass-through to Defuddle. Whatever you set is merged with a forced `markdown: true` (the integration always emits markdown — your `markdown: false` is ignored). See [Defuddle's options](https://github.com/kepano/defuddle) for the full set. |
 
 Defuddle handles main-content detection (`<main>` / `<article>` / smart fallbacks) and chrome removal automatically—no `selector` or `exclude` knobs to tune. The integration lazy-loads Defuddle and `linkedom` (its DOM dependency) on first request so they don't appear in the bundle if `fromHtml` is never called.
 
@@ -565,9 +577,9 @@ Append a static "About this site" section to the auto-gen:
 import type { APIRoute } from "astro";
 import { md, defaultLlmsTxt } from "astro-slop";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
   const body = md.string`
-${await defaultLlmsTxt()}
+${await defaultLlmsTxt(context)}
 
 ## About this site
 
@@ -588,11 +600,11 @@ import type { APIRoute } from "astro";
 import { md, defaultLlmsTxt } from "astro-slop";
 import { getCollection } from "astro:content";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
   const links = await getCollection("links");
 
   const body = md.string`
-${await defaultLlmsTxt()}
+${await defaultLlmsTxt(context)}
 
 ## Recommended reading
 
@@ -607,7 +619,7 @@ ${links.map((l) => `- ${md.link(l.data.title, l.data.url)} — ${l.data.summary}
 
 ### Customizing `/llms-full.txt`
 
-Same pattern as `/llms.txt`. Write `src/pages/llms-full.txt.ts` and call `defaultLlmsFullTxt()` to wrap or extend.
+Same pattern as `/llms.txt`. Write `src/pages/llms-full.txt.ts` and call `defaultLlmsFullTxt(context)` to wrap or extend.
 
 Append a static "Notes for AI agents" section:
 
@@ -616,8 +628,8 @@ Append a static "Notes for AI agents" section:
 import type { APIRoute } from "astro";
 import { defaultLlmsFullTxt } from "astro-slop";
 
-export const GET: APIRoute = async () => {
-  const body = await defaultLlmsFullTxt();
+export const GET: APIRoute = async (context) => {
+  const body = await defaultLlmsFullTxt(context);
   return new Response(
     `${body}\n## Notes for agents\n\nThis content is licensed CC BY 4.0. Attribution: https://example.com.\n`,
     { headers: { "Content-Type": "text/plain; charset=utf-8" } },
@@ -632,9 +644,9 @@ Or pre-process the auto-gen—e.g., add a license preamble at the top:
 import type { APIRoute } from "astro";
 import { defaultLlmsFullTxt } from "astro-slop";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async (context) => {
   const preamble = `<!--\nThis document is licensed CC BY 4.0.\nGenerated ${new Date().toISOString()}.\n-->\n\n`;
-  const body = await defaultLlmsFullTxt();
+  const body = await defaultLlmsFullTxt(context);
 
   return new Response(preamble + body, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
@@ -654,6 +666,8 @@ Accept: text/markdown
 ~~~
 
 Browsers never trigger this—their default `Accept` is `text/html, application/xhtml+xml, ..., */*` with no markdown listed, so HTML always wins. Clients that explicitly request markdown (curl scripts, RSS readers, well-behaved LLM crawlers) get redirected automatically.
+
+The redirect carries a `Vary: Accept` header so downstream caches (Cloudflare, Vercel edge, nginx, etc.) treat it as Accept-conditional. Without `Vary`, a CDN could serve a redirect cached for an HTML-preferring client to a markdown-preferring one (or vice versa).
 
 Test it locally with `bun run dev`:
 
@@ -719,6 +733,7 @@ Run your site through both after deploying. With `astro-slop` configured per thi
 - **Override detection extensions**: the integration checks `.ts`, `.js`, `.mts`, `.mjs`, and `.astro` for user override files at `src/pages/llms.txt.*` and `src/pages/llms-full.txt.*`. Other extensions aren't checked—the integration's auto-gen will collide and Astro will emit a warning.
 - **`md.link` escape coverage**: only escapes `[` and `]` in link text. Most other markdown-special chars don't break links—but if your link text contains parentheses, ampersands, or HTML entities and you need strict correctness, post-process or write the link by hand.
 - **State sharing**: the integration shares state across module realms via `globalThis[Symbol.for("astro-slop:state")]`. This works for single-process Astro builds (the standard case). Multi-process setups (workers, custom isolation) may need a different mechanism—file an issue if you hit this.
+- **Per-entry route enumeration in dev / SSR**: at request time, the injected `/llms.txt` and `/llms-full.txt` handlers fetch every static `.md` route and crawl response bodies for `[…](/foo.md)` links to discover dynamic per-entry routes. A per-entry route that isn't linked from any static parent listing won't be enumerated in dev / SSR responses (it still appears in static builds, since the disk walk doesn't depend on link structure). The README's listing-route pattern (`/posts.md` linking each `/posts/<slug>.md`) is the canonical way to make per-entry routes discoverable.
 
 ## License
 
