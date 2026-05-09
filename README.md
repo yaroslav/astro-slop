@@ -4,6 +4,10 @@
 
 Content slop for LLMs to slurp. The most complete and flexible Astro integration for LLMs and generating markdown versions of pages. 
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/yaroslav/astro-slop/refs/heads/main/assets/images/astro-slop.png" width="256" height="256" alt="astro-slop">
+</div>
+
 - `.md` siblings for every page. Flexible, bottom-up, fully customizable approach: you create simple endpoints with the integration's helpers by example.
 - HTML → Markdown conversion for pages that don't have a markdown source from collections. MDX cleaning for MDX sources.
 - `<link rel="alternate">` injection on every HTML page.
