@@ -7,12 +7,12 @@
   "author": "Yaroslav Markin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yaroslavmarkin/astro-slop.git"
+    "url": "git+https://github.com/yaroslav/astro-slop.git"
   },
   "bugs": {
-    "url": "https://github.com/yaroslavmarkin/astro-slop/issues"
+    "url": "https://github.com/yaroslav/astro-slop/issues"
   },
-  "homepage": "https://github.com/yaroslavmarkin/astro-slop#readme",
+  "homepage": "https://github.com/yaroslav/astro-slop#readme",
   "engines": {
     "node": ">=22.0.0"
   },
