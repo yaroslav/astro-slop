@@ -30,9 +30,9 @@ export function htmlFileToUrlPath(relPath: string): string {
  * extension preserved.
  *
  *   "index.md"          → "/index.md"
- *   "posts.md"          → "/posts.md"
- *   "posts/hello.md"    → "/posts/hello.md"
- *   "posts/index.md"    → "/posts/index.md"
+ *   "about.md"          → "/about.md"
+ *   "items/foo.md"      → "/items/foo.md"
+ *   "items/index.md"    → "/items/index.md"
  */
 export function mdFileToUrlPath(relPath: string): string {
   return "/" + relPath.split(sep).join("/");
