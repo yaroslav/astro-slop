@@ -100,16 +100,17 @@ export default function slop(options: SlopOptions = {}): AstroIntegration {
       "astro:routes:resolved": ({ routes }) => {
         state.manifest = buildManifest(routes);
       },
-      "astro:build:done": async ({ dir }) => {
+      "astro:build:done": async ({ dir, logger }) => {
         if (!state.manifest) return;
         if (resolved.injectAlternateLink) {
-          await injectAlternateLinks(dir, state.manifest);
+          await injectAlternateLinks(dir, state.manifest, logger);
         }
         await buildLlmsArtifacts(
           dir,
           state.manifest,
           resolved,
           resolved.llmsFullTxt,
+          logger,
         );
       },
     },

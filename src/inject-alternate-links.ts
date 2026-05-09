@@ -11,6 +11,7 @@
 // dev-mode and SSR responses; this handles static prerender output where
 // middleware may not consistently fire across Astro versions.
 
+import type { AstroIntegrationLogger } from "astro";
 import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,8 +28,10 @@ import { walkHtmlFiles } from "./walk.js";
 export async function injectAlternateLinks(
   distUrl: URL,
   manifest: Manifest,
+  logger: AstroIntegrationLogger,
 ): Promise<number> {
   const distDir = fileURLToPath(distUrl);
+  const startedAt = Date.now();
   let modifiedCount = 0;
 
   for await (const htmlFile of walkHtmlFiles(distDir)) {
@@ -42,6 +45,13 @@ export async function injectAlternateLinks(
 
     await writeFile(htmlFile, modified);
     modifiedCount++;
+  }
+
+  const elapsedMs = Date.now() - startedAt;
+  if (modifiedCount > 0) {
+    logger.info(
+      `injected alternate links into ${modifiedCount} file${modifiedCount === 1 ? "" : "s"} in ${elapsedMs}ms`,
+    );
   }
 
   return modifiedCount;

@@ -10,6 +10,7 @@
 // llms-fetch.ts. Both paths produce the same logical output, just from
 // different sources (disk-walk vs HTTP).
 
+import type { AstroIntegrationLogger } from "astro";
 import { readFile, writeFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +33,7 @@ import { walkMdFiles } from "./walk.js";
 async function captureFromDisk(
   distUrl: URL,
   manifest: Manifest,
+  logger: AstroIntegrationLogger,
 ): Promise<CapturedRoute[]> {
   const distDir = fileURLToPath(distUrl);
   const captured: CapturedRoute[] = [];
@@ -56,8 +58,20 @@ async function captureFromDisk(
   }
 
   captured.sort((a, b) => a.mdUrl.localeCompare(b.mdUrl));
+  logger.info(
+    `captured ${captured.length} markdown file${captured.length === 1 ? "" : "s"}`,
+  );
   return captured;
 }
+
+/** Outcome of writing or splicing an llms.txt artifact at build time. */
+type FixupOutcome =
+  /** No file existed at this path; we wrote the auto-generated body fresh. */
+  | "created"
+  /** User's endpoint emitted a file containing the sentinel; we filled it in. */
+  | "spliced"
+  /** User's endpoint emitted a file without the sentinel; we left it alone. */
+  | "skipped";
 
 /**
  * Splice `autoGenBody` into the file at `path`:
@@ -71,7 +85,7 @@ async function fixupOrWrite(
   filename: string,
   sentinel: string,
   autoGenBody: string,
-): Promise<void> {
+): Promise<FixupOutcome> {
   const path = fileURLToPath(new URL(filename, distUrl));
   let existing: string | undefined;
   try {
@@ -82,11 +96,34 @@ async function fixupOrWrite(
 
   if (existing === undefined) {
     await writeFile(path, autoGenBody);
-    return;
+    return "created";
   }
 
   if (existing.includes(sentinel)) {
     await writeFile(path, existing.replaceAll(sentinel, autoGenBody));
+    return "spliced";
+  }
+
+  return "skipped";
+}
+
+function logArtifactOutcome(
+  logger: AstroIntegrationLogger,
+  filename: string,
+  outcome: FixupOutcome,
+): void {
+  switch (outcome) {
+    case "created":
+      logger.info(`\`${filename}\` created at \`dist\``);
+      return;
+    case "spliced":
+      logger.info(`\`${filename}\` updated at \`dist\``);
+      return;
+    case "skipped":
+      logger.debug(
+        `\`${filename}\` already exists without sentinel; left untouched`,
+      );
+      return;
   }
 }
 
@@ -99,19 +136,27 @@ export async function buildLlmsArtifacts(
   manifest: Manifest,
   options: AssemblyOptions,
   generateLlmsFull: boolean,
+  logger: AstroIntegrationLogger,
 ): Promise<void> {
-  const captured = await captureFromDisk(distUrl, manifest);
+  const captured = await captureFromDisk(distUrl, manifest, logger);
 
   const llmsTxtBody = assembleLlmsTxt(captured, options);
-  await fixupOrWrite(distUrl, "llms.txt", LLMS_TXT_SENTINEL, llmsTxtBody);
+  const llmsTxtOutcome = await fixupOrWrite(
+    distUrl,
+    "llms.txt",
+    LLMS_TXT_SENTINEL,
+    llmsTxtBody,
+  );
+  logArtifactOutcome(logger, "llms.txt", llmsTxtOutcome);
 
   if (generateLlmsFull) {
     const llmsFullTxtBody = assembleLlmsFullTxt(captured, options);
-    await fixupOrWrite(
+    const llmsFullTxtOutcome = await fixupOrWrite(
       distUrl,
       "llms-full.txt",
       LLMS_FULL_TXT_SENTINEL,
       llmsFullTxtBody,
     );
+    logArtifactOutcome(logger, "llms-full.txt", llmsFullTxtOutcome);
   }
 }

@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-09
+
+- Added logging: how many alternate links were injected, how many markdown files were created, llms.txt and llms-full.txt creation.
+
+## [0.1.2] - 2026-05-09
+
+No user-facing changes
+
 ## [0.1.1] - 2026-05-09
 
 - `/llms.txt` and `/llms-full.txt` no longer end up with empty sections in real projects. The previous capture path used Node's raw `import()` to pull each `.md.ts` endpoint into the integration and call its `GET()`; this failed for any endpoint that imported `.astro` files, bare relative paths, or `astro:content` virtual modules (essentially every realistic endpoint), and the failures were silently swallowed.
