@@ -39,6 +39,7 @@ astro-slop does exactly that: it gives you enough tooling to create your own sim
 - [How `/llms.txt` and `/llms-full.txt` are assembled](#how-llmstxt-and-llms-fulltxt-are-assembled)
 - [Verify your setup](#verify-your-setup)
 - [Caveats](#caveats)
+- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 
@@ -734,6 +735,10 @@ Run your site through both after deploying. With `astro-slop` configured per thi
 - **`md.link` escape coverage**: only escapes `[` and `]` in link text. Most other markdown-special chars don't break links—but if your link text contains parentheses, ampersands, or HTML entities and you need strict correctness, post-process or write the link by hand.
 - **State sharing**: the integration shares state across module realms via `globalThis[Symbol.for("astro-slop:state")]`. This works for single-process Astro builds (the standard case). Multi-process setups (workers, custom isolation) may need a different mechanism—file an issue if you hit this.
 - **Per-entry route enumeration in dev / SSR**: at request time, the injected `/llms.txt` and `/llms-full.txt` handlers fetch every static `.md` route and crawl response bodies for `[…](/foo.md)` links to discover dynamic per-entry routes. A per-entry route that isn't linked from any static parent listing won't be enumerated in dev / SSR responses (it still appears in static builds, since the disk walk doesn't depend on link structure). The README's listing-route pattern (`/posts.md` linking each `/posts/<slug>.md`) is the canonical way to make per-entry routes discoverable.
+
+## Acknowledgements
+
+Thanks to [Steph Ango](https://github.com/kepano) for [Defuddle](https://github.com/kepano/defuddle), the library `fromHtml` uses for content extraction and HTML → Markdown conversion.
 
 ## License
 
