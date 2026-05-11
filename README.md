@@ -740,6 +740,8 @@ Run your site through both after deploying. With `astro-slop` configured per thi
 
 Thanks to [Steph Ango](https://github.com/kepano) for [Defuddle](https://github.com/kepano/defuddle), the library `fromHtml` uses for content extraction and HTML → Markdown conversion.
 
+Shout out to Pavel Grinchenko and Margarita Klubochkina.
+
 ## License
 
 MIT
